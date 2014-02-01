@@ -1,6 +1,8 @@
 """
-Aaron Berndsen: 
-a set of classes designed to integrate with the python nltk, but adapted for very large datasets.  These classes use a Berkeley database as their backend, instead of keeping things in memory.
+Aaron Berndsen:
+a set of classes designed to integrate with the python nltk, but adapted for
+very large datasets.  These classes use a Berkeley database as their backend,
+ instead of keeping things in memory.
 
 """
 import cPickle as pickle
@@ -11,10 +13,11 @@ from bsddb3 import db
 
 import nltk
 
+
 class ConditionalFreqDistDB(object):
-    def __init__ (self, fname, bAppend=True, samples=None, remold=False):
+    def __init__(self, fname, bAppend=True, samples=None, remold=False):
         """
-        mimics nltk.ConditionalFreq but using bsddb3 
+        mimics nltk.ConditionalFreq but using bsddb3
         conditions are stores in self.conditionDB = FreqDistDB
         Args:
         fname : filename to store the key/value pairs
@@ -27,6 +30,7 @@ class ConditionalFreqDistDB(object):
         self.fname = fname
         self.dbTable = db.DB()
         self.dbTable.set_cachesize(0, 40000000)  # (GB, B)
+
         def backup(fname):
             if not os.path.exists(fname):
                 return
@@ -37,22 +41,23 @@ class ConditionalFreqDistDB(object):
                 fnew = "%s.bak%i" % (fname, idx)
             print "Moving %s to %s" % (fname, fnew)
             shutil.move(fname, fnew)
+
         if remold:
             backup(fname)
             backup('%s.cDB' % fname)
 
         if (bAppend):
-            self.dbTable.open(fname,None,
+            self.dbTable.open(fname, None,
                               db.DB_HASH, db.DB_DIRTY_READ | db.DB_CREATE )
             self.conDB = FreqDistDB("%s.cDB" % fname, True)
         else:
-            self.dbTable.open(fname,None,
+            self.dbTable.open(fname, None,
                               db.DB_HASH, db.DB_DIRTY_READ )
             self.conDB = FreqDistDB("%s.cDB" % fname, False)
         self._fdists = {}
         if samples:
             self.update(samples)
-            
+
     def _setdb(self, w1w2, val):
         if (self._bAppend and self.dbTable is not None):
             pk = pickle.dumps(val, pickle.HIGHEST_PROTOCOL)
@@ -62,7 +67,7 @@ class ConditionalFreqDistDB(object):
     def _increment(self, w1w2, inc=1):
         if (self._bAppend and self.dbTable is not None):
             v = self._get_w1w2(w1w2)
-            pk = pickle.dumps(v+inc, pickle.HIGHEST_PROTOCOL)
+            pk = pickle.dumps(v + inc, pickle.HIGHEST_PROTOCOL)
             self.dbTable.put(w1w2, pk )
 
     def update(self, samples):
@@ -70,12 +75,12 @@ class ConditionalFreqDistDB(object):
         try:
             sample_iter = samples.iteritems()
         except:
-            sample_iter = map(lambda x: (x,1), samples)
+            sample_iter = map(lambda x: (x, 1), samples)
         for ((cond, sample), count) in sample_iter:
             self.conDB.inc(cond, count=count)
             key = '%s_%s' % (cond, sample)
             self._increment(key, inc=count)
-        
+
     def __getitem__(self, condition):
         """ returns a nltk.FreqDist """
         return self._get(condition)
@@ -85,7 +90,7 @@ class ConditionalFreqDistDB(object):
 
     def N(self):
         return sum([self[fdist].N() for fdist in self.conditions()])
-    
+
     def _get_w1w2(self, w1w2, ret=0):
         if (self.dbTable is not None):
             pk = self.dbTable.get(w1w2)
@@ -101,16 +106,15 @@ class ConditionalFreqDistDB(object):
             cursor = self._cursor()
             rec = cursor.first()
             # note: re.escape removes special-character meaning (punctuation)
-            m = re.compile(re.escape('%s_' % condition)) 
+            m = re.compile(re.escape('%s_' % condition))
             while rec:
                 g = m.match('%s_' % rec[0])
-                if g is not None: 
+                if g is not None:
                     w2 = rec[0][g.end():]
                     FD.inc(w2, self._cursor_value(rec))
                 rec = cursor.next()
         return FD
-                    
-                    
+
     # Fetch a cursor (standard bsddb3 cursor)
     # Cursor should be read with cursor_key, cursor_value
     def _cursor(self):
@@ -127,8 +131,9 @@ class ConditionalFreqDistDB(object):
     # Fetch the key (value) for the current cursor tuple
     def _cursor_value(self, cursor_tuple):
         if (cursor_tuple is not None):
-            return pickle.loads( cursor_tuple[1] )
+            return pickle.loads(cursor_tuple[1])
         return None
+
     # Close this database
     def close(self):
         if (self.dbTable is not None):
@@ -140,8 +145,9 @@ class ConditionalFreqDistDB(object):
     # Flush all changes or cache to disk
     def flush(self):
         if (self._bAppend):
-            self.dbTable.sync()           
+            self.dbTable.sync()
             self.conDB.flush()
+
 
 class FreqDistDB(object):
     """
@@ -151,11 +157,12 @@ class FreqDistDB(object):
     """
     # Open file for read or write/append
     # Claler should delete file, if new db is required
-    def __init__ (self, fname, bAppend=True, samples=None, remold=False):
+    def __init__(self, fname, bAppend=True, samples=None, remold=False):
         self._bAppend = bAppend  # Open for write/append?
         self.dbTable = db.DB()
         self.dbTable.set_cachesize(0, 20000000)  # (GB, B)
         self.fname = fname
+
         def backup(fname):
             if not os.path.exists(fname):
                 return
@@ -166,14 +173,15 @@ class FreqDistDB(object):
                 fnew = "%s.bak%i" % (fname, idx)
             print "Moving %s to %s" % (fname, fnew)
             shutil.move(fname, fnew)
+
         if remold:
             backup(fname)
 
         if (bAppend):
-            self.dbTable.open(fname,None,
+            self.dbTable.open(fname, None,
                               db.DB_HASH, db.DB_DIRTY_READ | db.DB_CREATE )
         else:
-            self.dbTable.open(fname,None,
+            self.dbTable.open(fname, None,
                               db.DB_HASH, db.DB_DIRTY_READ )
         self._N = 0
         if samples:
@@ -183,14 +191,14 @@ class FreqDistDB(object):
         """
         Update the frequency distribution with the provided list of samples.
         This is a faster way to add multiple samples to the distribution.
-        
+
         @param samples: The samples to add.
         @type samples: C{list}
         """
         try:
             sample_iter = samples.iteritems()
         except:
-            sample_iter = map(lambda x: (x,1), samples)
+            sample_iter = map(lambda x: (x, 1), samples)
         for sample, count in sample_iter:
             self.inc(sample, count=count)
 
@@ -237,7 +245,7 @@ class FreqDistDB(object):
         if self.N() is 0:
             return 0
         else:
-            return float(self[sample])/self.N()
+            return float(self[sample]) / self.N()
 
     # Close this database
     def close(self):
@@ -261,7 +269,7 @@ class FreqDistDB(object):
     def increment(self, word, inc=1):
         if (self._bAppend and self.dbTable is not None):
             v = self.get(word)
-            pk = pickle.dumps(v+inc, pickle.HIGHEST_PROTOCOL)
+            pk = pickle.dumps(v + inc, pickle.HIGHEST_PROTOCOL)
             self.dbTable.put(word, pk )
             self._N += inc
 
@@ -269,7 +277,7 @@ class FreqDistDB(object):
     # "not found" implies a value of zero
     def get(self, word, ret=0):
         if (self.dbTable is not None):
-            pk = self.dbTable.get( word )
+            pk = self.dbTable.get(word)
             if (pk is not None):
                 return pickle.loads(pk)
         return ret
@@ -307,7 +315,7 @@ class FreqDistDB(object):
     # Fetch the key (value) for the current cursor tuple
     def cursor_value(self, cursor_tuple):
         if (cursor_tuple is not None):
-            return pickle.loads( cursor_tuple[1] )
+            return pickle.loads(cursor_tuple[1])
         return None
 
     # Calculate the total count for the entire table
@@ -325,6 +333,7 @@ class FreqDistDB(object):
             self.dbTable.put('__total__', pk )
         return nTotal
 
+
 class ConditionalProbDistDB(nltk.ConditionalProbDistI):
     """
     modelled after nltk.ConditionalProbDist, but we
@@ -333,6 +342,7 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
 
     """
     def __init__(self, cfdist, Ncfd, probdist_factory, useDB=False,
+                 skipsmall=0,
                  *factory_args, **factory_kw_args):
         """
         Construct a new conditional probability distribution, based on
@@ -342,6 +352,7 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
         @type cfdist: L{ConditionalFreqDist}
         @param cfdist: The C{ConditionalFreqDist} specifying the
             frequency distribution for each condition.
+        Ncfd : a number to help distinguish database names
         @type probdist_factory: C{class} or C{function}
         @param probdist_factory: The function or class that maps
             a condition's frequency distribution to its probability
@@ -350,13 +361,14 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
             C{factory_args} as its remaining arguments, and
             C{factory_kw_args} as keyword arguments.
         useDB: [False] use FreqDistDB instead of nltk.FreqDist
+        skipsmall : [0] skip conditions with fewer than this many samples
         @type factory_args: (any)
         @param factory_args: Extra arguments for C{probdist_factory}.
             These arguments are usually used to specify extra
             properties for the probability distributions of individual
             conditions, such as the number of bins they contain.
         @type factory_kw_args: (any)
-        @param factory_kw_args: Extra keyword arguments for C{probdist_factory}.
+        @param factory_kw_args: Extra keyword arguments for C{probdist_factory}
         """
         self._probdist_factory = probdist_factory
         self._cfdist = cfdist
@@ -368,6 +380,9 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
         # keep pdists in memory if we've seen the keyword a few times
         self._pdistsseen = nltk.FreqDist()
         self._pdistskeep = {}
+        # distributions to skip
+        self._skipsmall = skipsmall
+        self._pdistskip = {}
 
         self.Ncfd = Ncfd
         self.useDB = useDB
@@ -378,14 +393,16 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
     def __getitem__(self, condition):
         # track the number of times we've seen each condition
         self._pdistsseen[condition] += 1
-        if condition in self._pdistskeep:
+        if condition in self._pdistskip:
+            ret = self._pdistskip[condition]
+        elif condition in self._pdistskeep:
             ret = self._pdistskeep[condition]
-
         elif condition not in self._pdists:
             # If it's a condition we haven't seen, create a new prob
             # dist from the empty freq dist.  Typically, this will
             # give a uniform prob dist.
-            pdist = self._probdist_factory(nltk.FreqDist(), *self._factory_args,
+            pdist = self._probdist_factory(nltk.FreqDist(),
+                                           *self._factory_args,
                                            **self._factory_kw_args)
             ret = pdist
         #            self._pdists.append(condition)
@@ -393,7 +410,8 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
         else:
             fd = self._cfdist[condition]
             if self.useDB:
-                fname = dbdir+'%03i_%s.pdb' % (self.Ncfd, condition)
+                dbdir = '' #TODO
+                fname = dbdir + '%03i_%s.pdb' % (self.Ncfd, condition)
                 fd = nltk.FreqDistDB(fname, samples=fd)
                 fd.flush()
             ret = self._probdist_factory(fd, *self._factory_args,
@@ -401,6 +419,11 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
         # keep pdf's of popular items in memory
         if self._pdistsseen[condition] >= 2:
             self._pdistskeep[condition] = ret
+        # keep track of pdf's with very few samples
+        if len(ret.samples()) <= self._skipsmall:
+            self._pdistskip[condition] = self._probdist_factory(nltk.FreqDist(),
+                                                                *self._factory_args,
+                                                                **self._factory_kw_args)
         return ret
 
     def conditions(self):
@@ -408,4 +431,3 @@ class ConditionalProbDistDB(nltk.ConditionalProbDistI):
 
     def __len__(self):
         return len(self._pdists)
-
